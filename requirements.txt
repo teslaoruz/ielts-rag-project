@@ -8,3 +8,5 @@ faiss-cpu
 sentence-transformers
 python-dotenv
 kaggle
+auto-gptq
+huggingface_hub
