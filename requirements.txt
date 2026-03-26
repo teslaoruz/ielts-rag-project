@@ -1,0 +1,10 @@
+requests
+# beautifulsoup4
+pandas
+numpy
+tqdm
+scikit-learn
+faiss-cpu
+sentence-transformers
+python-dotenv
+kaggle

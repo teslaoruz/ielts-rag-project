@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual env
+venv/
+.env
+
+# Data
+data/raw/
+data/processed/
+data/embeddings/
+
+# Kaggle API key
+.kaggle/
+
+# OS / editor
+.DS_Store
+.vscode/
