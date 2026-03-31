@@ -34,9 +34,10 @@ def main():
     os.makedirs("data/embeddings", exist_ok=True)
     faiss.write_index(index, INDEX_PATH)
 
-    # Save metadata
+    # Save metadata as plain integer row mapping to avoid pandas pickle compatibility issues.
+    row_map = list(range(len(df)))
     with open(META_PATH, "wb") as f:
-        pickle.dump(df, f)
+        pickle.dump(row_map, f)
 
     print("✅ FAISS index built and saved!")
 
