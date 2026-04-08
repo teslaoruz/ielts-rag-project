@@ -66,6 +66,13 @@ class LightweightRAGEvaluator:
         self.meta_path = Path(meta_path)
 
         self.df = pd.read_csv(self.data_path)
+        self.band_column = self._resolve_band_column(self.df)
+        self.df[self.band_column] = pd.to_numeric(self.df[self.band_column], errors="coerce")
+        if self.df[self.band_column].isna().all():
+            raise ValueError(
+                f"Column '{self.band_column}' exists but contains no numeric values in {self.data_path}."
+            )
+
         self.index = faiss.read_index(str(self.index_path))
         self.metadata = self._load_metadata(self.meta_path)
         try:
@@ -94,15 +101,33 @@ class LightweightRAGEvaluator:
             )
             return None
 
+    @staticmethod
+    def _resolve_band_column(df: pd.DataFrame) -> str:
+        lower_to_original = {column.lower(): column for column in df.columns}
+        for candidate in ("band", "overall", "score"):
+            if candidate in lower_to_original:
+                return lower_to_original[candidate]
+
+        for column in df.columns:
+            lowered = column.lower()
+            if "band" in lowered or "overall" in lowered or "score" in lowered:
+                return column
+
+        raise ValueError(
+            "No IELTS score column found. Expected one of: "
+            "'band', 'overall', or a column containing 'score'."
+        )
+
     def _map_to_row_index(self, faiss_index: int) -> int:
         if self.metadata is None:
             return faiss_index
         if isinstance(self.metadata, pd.DataFrame):
             return faiss_index
         if isinstance(self.metadata, list):
-            candidate = self.metadata[faiss_index]
-            if isinstance(candidate, (int, np.integer)):
-                return int(candidate)
+            if 0 <= faiss_index < len(self.metadata):
+                candidate = self.metadata[faiss_index]
+                if isinstance(candidate, (int, np.integer)):
+                    return int(candidate)
             return faiss_index
         return faiss_index
 
@@ -120,8 +145,18 @@ class LightweightRAGEvaluator:
         neighbors = []
         for rank, (distance, idx) in enumerate(zip(distances[0], indices[0]), start=1):
             row_index = self._map_to_row_index(int(idx))
+            if row_index < 0 or row_index >= len(self.df):
+                warnings.warn(
+                    f"Skipping out-of-range row index {row_index} from FAISS result {idx}.",
+                    RuntimeWarning,
+                )
+                continue
+
             row = self.df.iloc[row_index]
-            band = float(row["band"])
+            band_value = row[self.band_column]
+            if pd.isna(band_value):
+                continue
+            band = float(band_value)
             similarity = float(1.0 / (1.0 + distance))
             neighbors.append(
                 RetrievedEssay(
@@ -133,6 +168,11 @@ class LightweightRAGEvaluator:
                     essay=str(row["essay"]),
                     band_category=self._band_bucket(band),
                 )
+            )
+        if not neighbors:
+            raise RuntimeError(
+                "No valid neighbors were retrieved. "
+                "Check that FAISS index, metadata, and score column are aligned."
             )
         return neighbors
 
